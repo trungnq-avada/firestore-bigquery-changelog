@@ -1,0 +1,22 @@
+{
+  "name": "@avada/firestore-bigquery-changelog",
+  "version": "0.1.0",
+  "description": "SDK to log Firestore document changelog to an API",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "firebase-functions": ">=4.0.0"
+  },
+  "devDependencies": {
+    "firebase-functions": "^4.4.1",
+    "typescript": "^5.4.0"
+  },
+  "license": "MIT"
+}
