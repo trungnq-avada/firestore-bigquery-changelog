@@ -1,9 +1,9 @@
-import {DEFAULT_API_URL, DEFAULT_API_KEY, DEFAULT_TIMEOUT} from './config';
+import {DEFAULT_API_URL, DEFAULT_TIMEOUT} from './config';
 import type {ChangelogTriggerConfig} from './types';
 
 export const createApiClient = (config: ChangelogTriggerConfig) => {
   const apiUrl = config.apiUrl ?? DEFAULT_API_URL;
-  const apiKey = config.apiKey ?? DEFAULT_API_KEY;
+  const apiKey = config.apiKey;
   const customHeaders = config.headers ?? {};
   const timeout = config.timeout ?? DEFAULT_TIMEOUT;
 

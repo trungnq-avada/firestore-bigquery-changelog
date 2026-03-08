@@ -5,8 +5,8 @@ export interface ChangelogTriggerConfig {
   projectId: string;
   /** API endpoint URL to send changelog data. Uses default from config if not provided. */
   apiUrl?: string;
-  /** API key for authentication (sent as x-api-key header). Uses default from config if not provided. */
-  apiKey?: string;
+  /** API key for authentication (sent as x-api-key header). */
+  apiKey: string;
   /** Custom headers to include in API requests */
   headers?: Record<string, string>;
   /** Request timeout in milliseconds. Default: 10000 */
