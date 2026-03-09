@@ -29,8 +29,8 @@ import { createChangelogTrigger } from '@avada/firestore-bigquery-changelog';
 
 const changelog = createChangelogTrigger({
   appId: 'your-app-id', // orderLimit, cookieBar
-  projectId: 'your-firebase-project-id',
   apiKey: 'your-api-key',
+  // projectId defaults to 'avada-crm'
   // Optional: apiUrl if not using environment defaults
 });
 ```
@@ -135,7 +135,7 @@ const handlers = changelog.onWriteMany([
 | Option | Type | Description |
 | :--- | :--- | :--- |
 | `appId` | `string` | **Required**. Your application identifier. |
-| `projectId` | `string` | **Required**. Firebase project ID. |
+| `projectId` | `string` | Optional. Firebase project ID (default: `'avada-crm'`). |
 | `apiUrl` | `string` | Optional. Endpoint URL. |
 | `apiKey` | `string` | **Required**. API key for authentication. |
 | `timeout` | `number` | Optional. Request timeout in ms (default: 10000). |

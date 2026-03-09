@@ -8,7 +8,8 @@ import type {
   FirestoreEvent
 } from './types';
 
-export const createChangelogTrigger = (config: ChangelogTriggerConfig) => {
+export const createChangelogTrigger = (inputConfig: ChangelogTriggerConfig) => {
+  const config = {...inputConfig, projectId: inputConfig.projectId ?? 'avada-crm'};
   const {sendRow} = createApiClient(config);
 
   const onWrite = (collectionConfig: CollectionConfig) => {

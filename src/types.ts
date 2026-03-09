@@ -1,8 +1,8 @@
 export interface ChangelogTriggerConfig {
   /** Application ID */
   appId: string;
-  /** Firebase project ID (e.g. 'avada-order-limit') */
-  projectId: string;
+  /** Firebase project ID. Default: 'avada-crm' */
+  projectId?: string;
   /** API endpoint URL to send changelog data. Uses default from config if not provided. */
   apiUrl?: string;
   /** API key for authentication (sent as x-api-key header). */
