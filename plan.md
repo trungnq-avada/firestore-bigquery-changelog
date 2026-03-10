@@ -1,0 +1,1 @@
+ê tính ra là cái destinationTable nên là "s" á, tại vì 1 collection nhưng mà có thể tạo ra nhiều table ấy. bạn hiểu ý mình ko? cho mình plan trước nhé. để mình xem trước khi implement

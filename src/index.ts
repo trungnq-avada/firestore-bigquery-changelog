@@ -4,6 +4,8 @@ export {getWriteType, toSnakeCase, generateDefaultRow, pickTriggerData} from './
 export type {
   ChangelogTriggerConfig,
   CollectionConfig,
+  DestinationConfig,
+  Logger,
   ChangelogRow,
   WriteType,
   FirestoreChange,

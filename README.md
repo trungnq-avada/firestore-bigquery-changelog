@@ -7,7 +7,7 @@ SDK to log Firestore document changelog to an API (BigQuery Proxy). This package
 - Support for both Firebase Functions V1 and V2.
 - Automatic `snake_case` conversion for picked fields.
 - Customizable row transformation.
-- Custom destination table name for BigQuery.
+- Multiple destination tables per collection with independent config.
 - Upsert (MERGE) mode with composite keys support.
 - Efficient batch handling.
 - Built-in TypeScript support.
@@ -42,11 +42,20 @@ const changelog = createChangelogTrigger({
 ```typescript
 import * as functions from 'firebase-functions';
 
+// Simple: table name defaults to collectionId ('products')
 export const onProductWrite = functions.firestore
   .document('products/{productId}')
+  .onWrite(changelog.onWrite({ collectionId: 'products' }));
+
+// With custom destinations
+export const onOrderWrite = functions.firestore
+  .document('orders/{orderId}')
   .onWrite(changelog.onWrite({
-    collectionId: 'products',
-    pickKeys: ['name', 'price', 'status'] // Internal fields to be extracted as columns
+    collectionId: 'orders',
+    destinations: [
+      { tableName: 'orders_raw' },
+      { tableName: 'orders_analytics', pickKeys: ['status', 'total'] }
+    ]
   }));
 ```
 
@@ -55,40 +64,49 @@ export const onProductWrite = functions.firestore
 ```typescript
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
-export const onOrderWrite = onDocumentWritten('orders/{orderId}',
-  changelog.onWriteV2({
-    collectionId: 'orders',
-    destinationTable: 'v2_orders_data' // Optional: Custom BigQuery table name
-  })
+export const onOrderWriteV2 = onDocumentWritten('orders/{orderId}',
+  changelog.onWriteV2({ collectionId: 'orders' })
 );
 ```
 
 ## Advanced Configuration
 
-### Custom Destination Table
+### Multiple Destination Tables
 
-By default, the API resolves the BigQuery table name from `appId` and `collectionId`. Use `destinationTable` to specify a custom table name directly.
+Use `destinations` to write a single collection's changes to multiple BigQuery tables, each with its own `pickKeys`, `upsertKeys`, and `transformRow`.
 
 ```typescript
 changelog.onWrite({
   collectionId: 'shops',
-  destinationTable: 'avada_customer', // Write to this BigQuery table instead
+  destinations: [
+    {
+      tableName: 'shops_changelog',
+      pickKeys: ['name', 'status'],
+    },
+    {
+      tableName: 'avada_customer',
+      upsertKeys: ['shopifyDomain'],
+      pickKeys: ['shopifyDomain', 'email', 'plan'],
+    },
+  ],
 })
 ```
 
 ### Upsert Mode (MERGE)
 
-Use `upsertKeys` to enable upsert mode. Instead of appending a new row for every change, the API will MERGE (insert or update) based on the specified keys.
+Use `upsertKeys` on a destination to enable upsert mode. Instead of appending a new row for every change, the API will MERGE (insert or update) based on the specified keys.
 
 This is useful for maintaining a single row per entity (e.g., a CRM table with one row per shop).
 
 ```typescript
-// Each shop change will upsert into avada_customer table
-// matched by shopifyDomain (composite keys supported)
 changelog.onWriteV2({
   collectionId: 'shops',
-  destinationTable: 'avada_customer',
-  upsertKeys: ['shopifyDomain'],
+  destinations: [
+    {
+      tableName: 'avada_customer',
+      upsertKeys: ['shopifyDomain'],
+    },
+  ],
 })
 ```
 
@@ -105,14 +123,31 @@ You can use `transformRow` to modify the data before it's sent to the API. This 
 ```typescript
 changelog.onWrite({
   collectionId: 'users',
-  transformRow: (row) => {
-    return {
-      ...row,
-      full_name: `${row.first_name} ${row.last_name}`,
-      processed_at: new Date().toISOString()
-    };
-  }
+  destinations: [
+    {
+      tableName: 'users',
+      transformRow: (row) => ({
+        ...row,
+        full_name: `${row.first_name} ${row.last_name}`,
+        processed_at: new Date().toISOString()
+      }),
+    },
+  ],
 })
+```
+
+### Logger
+
+Pass a `logger` to `createChangelogTrigger` to enable debug logging. Any object with `info` and `error` methods works (e.g. `console`, `functions.logger`).
+
+```typescript
+import * as functions from 'firebase-functions';
+
+const changelog = createChangelogTrigger({
+  appId: 'your-app-id',
+  apiKey: 'your-api-key',
+  logger: functions.logger,
+});
 ```
 
 ### Handling Multiple Collections
@@ -121,8 +156,8 @@ If you have many collections to track, you can use `onWriteMany` or `onWriteMany
 
 ```typescript
 const handlers = changelog.onWriteMany([
-  { collectionId: 'settings' },
-  { collectionId: 'profiles', pickKeys: ['theme'] }
+  { collectionId: 'settings', destinations: [{ tableName: 'settings' }] },
+  { collectionId: 'profiles', destinations: [{ tableName: 'profiles', pickKeys: ['theme'] }] }
 ]);
 
 // Then export them or register them as needed by your framework
@@ -140,13 +175,20 @@ const handlers = changelog.onWriteMany([
 | `apiKey` | `string` | **Required**. API key for authentication. |
 | `timeout` | `number` | Optional. Request timeout in ms (default: 10000). |
 | `headers` | `object` | Optional. Custom headers for the request. |
+| `logger` | `Logger` | Optional. Logger instance for debugging (must have `info` and `error` methods). |
 
 ### `CollectionConfig`
 
 | Option | Type | Description |
 | :--- | :--- | :--- |
 | `collectionId` | `string` | **Required**. Firestore collection name. |
-| `destinationTable` | `string` | Optional. Custom BigQuery table name. Defaults to auto-resolved from `appId` and `collectionId`. |
+| `destinations` | `DestinationConfig[]` | Optional. Array of destination tables to write to. Defaults to `[{ tableName: collectionId }]`. |
+
+### `DestinationConfig`
+
+| Option | Type | Description |
+| :--- | :--- | :--- |
+| `tableName` | `string` | **Required**. BigQuery destination table name. |
 | `pickKeys` | `string[]` | Optional. Fields to extract from the document as extra columns (auto `snake_case`). |
 | `upsertKeys` | `string[]` | Optional. camelCase field names for MERGE mode. When set, API will upsert instead of insert. |
 | `transformRow` | `function` | Optional. Async/sync function to modify the row before sending. |

@@ -10,13 +10,15 @@ import type {
 
 export const createChangelogTrigger = (inputConfig: ChangelogTriggerConfig) => {
   const config = {...inputConfig, projectId: inputConfig.projectId ?? 'avada-crm'};
+  const logger = config.logger;
   const {sendRow} = createApiClient(config);
 
   const onWrite = (collectionConfig: CollectionConfig) => {
-    const {collectionId, destinationTable, upsertKeys, pickKeys = [], transformRow} = collectionConfig;
+    const {collectionId} = collectionConfig;
+    const destinations = collectionConfig.destinations ?? [{tableName: collectionId}];
 
     return async (change: FirestoreChange, context: FirestoreContext): Promise<boolean> => {
-      const defaultRow = generateDefaultRow({
+      const baseRow = generateDefaultRow({
         change,
         context,
         collectionId,
@@ -24,16 +26,25 @@ export const createChangelogTrigger = (inputConfig: ChangelogTriggerConfig) => {
         appId: config.appId
       });
 
-      let row = {
-        ...defaultRow,
-        ...(pickKeys.length > 0 ? pickTriggerData({change, keys: pickKeys}) : {})
-      };
+      const destinationsPayload = await Promise.all(
+        destinations.map(async (dest) => {
+          const pickKeys = dest.pickKeys ?? [];
+          let row = {
+            ...baseRow,
+            ...(pickKeys.length > 0 ? pickTriggerData({change, keys: pickKeys}) : {})
+          };
 
-      if (transformRow) {
-        row = await transformRow(row);
-      }
+          if (dest.transformRow) {
+            row = await dest.transformRow(row);
+          }
 
-      await sendRow(row, collectionId, destinationTable, upsertKeys);
+          return {tableName: dest.tableName, upsertKeys: dest.upsertKeys, row};
+        })
+      );
+
+      logger?.debug?.(`[changelog] ${collectionId} → ${destinations.map(d => d.tableName).join(', ')}`);
+      await sendRow(collectionId, destinationsPayload);
+      logger?.info?.(`[changelog] ${collectionId}: sent ${destinationsPayload.length} destination(s)`);
       return true;
     };
   };

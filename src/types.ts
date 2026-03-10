@@ -1,3 +1,10 @@
+export interface Logger {
+  info: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
+  warn?: (...args: unknown[]) => void;
+  debug?: (...args: unknown[]) => void;
+}
+
 export interface ChangelogTriggerConfig {
   /** Application ID */
   appId: string;
@@ -11,19 +18,27 @@ export interface ChangelogTriggerConfig {
   headers?: Record<string, string>;
   /** Request timeout in milliseconds. Default: 10000 */
   timeout?: number;
+  /** Optional logger for debugging. */
+  logger?: Logger;
 }
 
-export interface CollectionConfig {
-  /** Firestore collection ID (e.g. 'purchaseActivities') */
-  collectionId: string;
-  /** Destination table name on BigQuery. Defaults to collectionId if not provided. */
-  destinationTable?: string;
+export interface DestinationConfig {
+  /** Destination table name on BigQuery. */
+  tableName: string;
   /** Fields to pick from the document and add as extra columns (auto snake_case). */
   pickKeys?: string[];
   /** camelCase key fields for upsert mode. When set, API will MERGE instead of INSERT. */
   upsertKeys?: string[];
   /** Custom transform function to modify the row before sending. */
   transformRow?: (row: ChangelogRow) => ChangelogRow | Promise<ChangelogRow>;
+}
+
+export interface CollectionConfig {
+  /** Firestore collection ID (e.g. 'purchaseActivities') */
+  collectionId: string;
+  /** Destination tables to write to. Each destination can have its own pickKeys, upsertKeys, and transformRow.
+   * Defaults to [{ tableName: collectionId }] if not provided. */
+  destinations?: DestinationConfig[];
 }
 
 export interface ChangelogRow {

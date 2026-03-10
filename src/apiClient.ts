@@ -6,12 +6,11 @@ export const createApiClient = (config: ChangelogTriggerConfig) => {
   const apiKey = config.apiKey;
   const customHeaders = config.headers ?? {};
   const timeout = config.timeout ?? DEFAULT_TIMEOUT;
+  const logger = config.logger;
 
   const sendRow = async (
-    row: Record<string, unknown>,
     collectionId: string,
-    destinationTable?: string,
-    upsertKeys?: string[]
+    destinations: Array<{tableName: string; upsertKeys?: string[]; row: Record<string, unknown>}>
   ) => {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -26,12 +25,14 @@ export const createApiClient = (config: ChangelogTriggerConfig) => {
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify({collectionId, destinationTable, upsertKeys, row}),
+        body: JSON.stringify({collectionId, destinations}),
         signal: controller.signal
       });
 
       if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+        const error = `API request failed: ${response.status} ${response.statusText}`;
+        logger?.error?.(`[changelog] ${error}`);
+        throw new Error(error);
       }
 
       return response;
