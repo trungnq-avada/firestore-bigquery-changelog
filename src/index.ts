@@ -1,7 +1,7 @@
 export {createChangelogTrigger} from './createChangelogTrigger';
 export {DEFAULT_CHANGELOG_SCHEMA} from './config';
 export {createBigQueryClient, parseCredentials} from './bigquery';
-export {getWriteType, toSnakeCase, generateDefaultRow, pickTriggerData} from './utils';
+export {getWriteType, toSnakeCase, generateAppPrefix, generateDefaultRow, pickTriggerData} from './utils';
 export type {
   ChangelogTriggerConfig,
   CollectionConfig,

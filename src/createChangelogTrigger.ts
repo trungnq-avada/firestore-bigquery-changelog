@@ -1,5 +1,5 @@
 import {createBigQueryClient, createDestinationProcessor} from './bigquery';
-import {generateDefaultRow, pickTriggerData} from './utils';
+import {generateAppPrefix, generateDefaultRow, pickTriggerData} from './utils';
 import type {
   ChangelogTriggerConfig,
   CollectionConfig,
@@ -10,7 +10,9 @@ import type {
 } from './types';
 
 export const createChangelogTrigger = (inputConfig: ChangelogTriggerConfig) => {
-  const config = {...inputConfig, projectId: inputConfig.projectId ?? 'avada-crm'};
+  const appPrefix = inputConfig.appPrefix ?? generateAppPrefix(inputConfig.appId);
+  const datasetId = inputConfig.datasetId ?? 'churn_prediction';
+  const config = {...inputConfig, projectId: inputConfig.projectId ?? 'avada-crm', appPrefix, datasetId};
   const logger = config.logger;
 
   const bigquery = createBigQueryClient(config.credentials);

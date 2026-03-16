@@ -9,16 +9,17 @@ export interface ChangelogTriggerConfig {
   /** Application ID */
   appId: string;
   /** Short prefix for auto-generating table names. E.g. 'ol' for orderLimit, 'cb' for cookieBar.
+   * Auto-generated from appId if not provided (first char + each uppercase char, lowercased).
    * Default table name = `{appPrefix}_{collectionId}_changelog` */
-  appPrefix: string;
+  appPrefix?: string;
   /** Firebase project ID. Default: 'avada-crm' */
   projectId?: string;
-  /** BigQuery dataset ID */
-  datasetId: string;
-  /** Service account credentials. Accepts:
-   * - Parsed JSON object (from import/require of .json file)
-   * - JSON string (from Firebase functions.config())
-   * - Base64-encoded string (from Firebase functions.config())
+  /** BigQuery dataset ID. Default: 'churn_prediction' */
+  datasetId?: string;
+  /** Service account credentials (auto-detected format). Accepts:
+   * - JSON object: `require('./service-account.json')`
+   * - JSON string: `'{"project_id": "...", "private_key": "...", ...}'`
+   * - Base64-encoded string: base64 of the JSON above (e.g. from env vars or functions.config())
    */
   credentials: Record<string, unknown> | string;
   /** Custom schema for changelog tables */

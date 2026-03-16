@@ -24,20 +24,54 @@ npm install @avada/firestore-bigquery-changelog
 
 ### 1. Initialize the SDK
 
-Create a trigger instance with your BigQuery credentials and dataset configuration.
+Only `appId` and `credentials` are required. Everything else has sensible defaults.
 
 ```typescript
 import { createChangelogTrigger } from '@avada/firestore-bigquery-changelog';
 
 const changelog = createChangelogTrigger({
   appId: 'orderLimit',
-  appPrefix: 'ol',          // table name = ol_{collectionId}_changelog
-  datasetId: 'churn_prediction',
   credentials: require('./service-account.json'),
-  // or credentials: functions.config().bigquery.credentials (JSON string or base64)
-  // projectId defaults to 'avada-crm'
 });
 ```
+
+#### Credentials
+
+The `credentials` field accepts three formats:
+
+```typescript
+// 1. JSON object — import or require a service account JSON file
+const changelog = createChangelogTrigger({
+  appId: 'orderLimit',
+  credentials: require('./service-account.json'),
+});
+
+// 2. JSON string — e.g. from Firebase functions.config()
+const changelog = createChangelogTrigger({
+  appId: 'orderLimit',
+  credentials: functions.config().bigquery.credentials,
+  // where credentials = '{"project_id": "...", "private_key": "...", ...}'
+});
+
+// 3. Base64-encoded string — e.g. from environment variable or functions.config()
+const changelog = createChangelogTrigger({
+  appId: 'orderLimit',
+  credentials: process.env.BIGQUERY_CREDENTIALS_BASE64,
+  // where the value is a base64-encoded JSON string
+});
+```
+
+The SDK auto-detects the format: tries JSON object first, then JSON string, then base64 decode.
+
+#### Defaults
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `appPrefix` | Auto from `appId` | First char + each uppercase char, lowercased. E.g. `orderLimit` → `ol`, `cookieBar` → `cb`, `seaAccessibility` → `sa`. Override by passing explicitly. |
+| `datasetId` | `'churn_prediction'` | BigQuery dataset ID. |
+| `projectId` | `'avada-crm'` | Firebase project ID. |
+
+Table name format: `{appPrefix}_{collectionId}_changelog` (e.g. `ol_products_changelog`).
 
 ### 2. Set up Firestore Triggers
 
@@ -171,9 +205,7 @@ import * as functions from 'firebase-functions';
 
 const changelog = createChangelogTrigger({
   appId: 'orderLimit',
-  appPrefix: 'ol',
-  datasetId: 'churn_prediction',
-  credentials: functions.config().bigquery.credentials,
+  credentials: functions.config().bigquery.credentials, // JSON string or base64
   logger: functions.logger,
 });
 ```
@@ -199,9 +231,9 @@ const handlers = changelog.onWriteMany([
 | Option | Type | Description |
 | :--- | :--- | :--- |
 | `appId` | `string` | **Required**. Your application identifier (e.g. `'orderLimit'`). |
-| `appPrefix` | `string` | **Required**. Short prefix for table names (e.g. `'ol'`). Default table name = `{appPrefix}_{collectionId}_changelog`. |
-| `datasetId` | `string` | **Required**. BigQuery dataset ID. |
-| `credentials` | `object \| string` | **Required**. Service account credentials. Accepts JSON object, JSON string, or base64-encoded string. |
+| `appPrefix` | `string` | Optional. Short prefix for table names (e.g. `'ol'`). Auto-generated from `appId` if not provided. Table name = `{appPrefix}_{collectionId}_changelog`. |
+| `datasetId` | `string` | Optional. BigQuery dataset ID (default: `'churn_prediction'`). |
+| `credentials` | `object \| string` | **Required**. Service account credentials. Accepts: JSON object (`require('./sa.json')`), JSON string, or base64-encoded string. Auto-detected. |
 | `projectId` | `string` | Optional. Firebase project ID (default: `'avada-crm'`). |
 | `changelogSchema` | `SchemaField[]` | Optional. Custom schema for changelog tables. |
 | `logger` | `Logger` | Optional. Logger instance for debugging (must have `info` and `error` methods). |
