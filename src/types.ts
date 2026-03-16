@@ -20,8 +20,9 @@ export interface ChangelogTriggerConfig {
    * - JSON object: `require('./service-account.json')`
    * - JSON string: `'{"project_id": "...", "private_key": "...", ...}'`
    * - Base64-encoded string: base64 of the JSON above (e.g. from env vars or functions.config())
+   * - Omit to use default credentials (e.g. inside Firebase Functions, uses the project's service account)
    */
-  credentials: Record<string, unknown> | string;
+  credentials?: Record<string, unknown> | string;
   /** Custom schema for changelog tables */
   changelogSchema?: SchemaField[];
   /** Optional logger for debugging. */

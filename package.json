@@ -1,6 +1,6 @@
 {
   "name": "firestore-bigquery-changelog",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "SDK to log Firestore document changelog directly to BigQuery",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

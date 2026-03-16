@@ -19,7 +19,10 @@ export function parseCredentials(input: Record<string, unknown> | string): Recor
   }
 }
 
-export function createBigQueryClient(credentials: Record<string, unknown> | string): BigQuery {
+export function createBigQueryClient(credentials?: Record<string, unknown> | string): BigQuery {
+  if (!credentials) {
+    return new BigQuery();
+  }
   const parsed = parseCredentials(credentials);
   return new BigQuery({
     projectId: parsed.project_id as string,
