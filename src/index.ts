@@ -1,5 +1,6 @@
 export {createChangelogTrigger} from './createChangelogTrigger';
-export {DEFAULT_API_URL, DEFAULT_TIMEOUT} from './config';
+export {DEFAULT_CHANGELOG_SCHEMA} from './config';
+export {createBigQueryClient, parseCredentials} from './bigquery';
 export {getWriteType, toSnakeCase, generateDefaultRow, pickTriggerData} from './utils';
 export type {
   ChangelogTriggerConfig,
@@ -8,6 +9,9 @@ export type {
   Logger,
   ChangelogRow,
   WriteType,
+  SchemaField,
+  UpsertConfig,
+  DestinationResult,
   FirestoreChange,
   FirestoreContext,
   FirestoreDocSnapshot,

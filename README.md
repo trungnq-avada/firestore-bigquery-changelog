@@ -1,15 +1,17 @@
 # @avada/firestore-bigquery-changelog
 
-SDK to log Firestore document changelog to an API (BigQuery Proxy). This package helps you track every change in your Firestore collections and sync them to BigQuery for analysis.
+SDK to log Firestore document changelog directly to BigQuery. This package helps you track every change in your Firestore collections and sync them to BigQuery for analysis.
 
 ## Features
 
+- Writes directly to BigQuery (no API proxy needed).
 - Support for both Firebase Functions V1 and V2.
 - Automatic `snake_case` conversion for picked fields.
 - Customizable row transformation.
 - Multiple destination tables per collection with independent config.
-- Upsert (MERGE) mode with composite keys support.
-- Efficient batch handling.
+- Upsert (MERGE) mode with composite keys, field picking, and aliases.
+- In-process mutex lock to prevent concurrent upsert race conditions.
+- Auto table creation and schema migration (adds missing columns).
 - Built-in TypeScript support.
 
 ## Installation
@@ -22,16 +24,18 @@ npm install @avada/firestore-bigquery-changelog
 
 ### 1. Initialize the SDK
 
-First, create a trigger instance with your project configuration.
+Create a trigger instance with your BigQuery credentials and dataset configuration.
 
 ```typescript
 import { createChangelogTrigger } from '@avada/firestore-bigquery-changelog';
 
 const changelog = createChangelogTrigger({
-  appId: 'your-app-id', // orderLimit, cookieBar
-  apiKey: 'your-api-key',
+  appId: 'orderLimit',
+  appPrefix: 'ol',          // table name = ol_{collectionId}_changelog
+  datasetId: 'churn_prediction',
+  credentials: require('./service-account.json'),
+  // or credentials: functions.config().bigquery.credentials (JSON string or base64)
   // projectId defaults to 'avada-crm'
-  // Optional: apiUrl if not using environment defaults
 });
 ```
 
@@ -42,7 +46,7 @@ const changelog = createChangelogTrigger({
 ```typescript
 import * as functions from 'firebase-functions';
 
-// Simple: table name defaults to collectionId ('products')
+// Simple: table name defaults to 'ol_products_changelog'
 export const onProductWrite = functions.firestore
   .document('products/{productId}')
   .onWrite(changelog.onWrite({ collectionId: 'products' }));
@@ -84,7 +88,7 @@ changelog.onWrite({
       pickKeys: ['name', 'status'],
     },
     {
-      tableName: 'avada_customer',
+      tableName: 'avada_customers',
       upsertKeys: ['shopifyDomain'],
       pickKeys: ['shopifyDomain', 'email', 'plan'],
     },
@@ -94,7 +98,7 @@ changelog.onWrite({
 
 ### Upsert Mode (MERGE)
 
-Use `upsertKeys` on a destination to enable upsert mode. Instead of appending a new row for every change, the API will MERGE (insert or update) based on the specified keys.
+Use `upsertKeys` on a destination to enable upsert mode. Instead of appending a new row for every change, the SDK will MERGE (insert or update) based on the specified keys.
 
 This is useful for maintaining a single row per entity (e.g., a CRM table with one row per shop).
 
@@ -103,7 +107,7 @@ changelog.onWriteV2({
   collectionId: 'shops',
   destinations: [
     {
-      tableName: 'avada_customer',
+      tableName: 'avada_customers',
       upsertKeys: ['shopifyDomain'],
     },
   ],
@@ -111,14 +115,36 @@ changelog.onWriteV2({
 ```
 
 When `upsertKeys` is set:
-- The API parses the `data` JSON field and picks configured fields (configured on API side).
 - MERGE uses `ON` condition with all upsert keys (auto-converted to `snake_case`).
 - DELETE operations are skipped (no data to merge).
+- An `updated_at` timestamp is automatically added.
 - Fields not present in the document are left unchanged in BigQuery.
+
+### Upsert with Field Picking and Aliases
+
+For more control over upsert behavior, use `upsertConfig` to specify which fields to pick from the document `data` JSON, and define field aliases for flexible matching.
+
+```typescript
+changelog.onWrite({
+  collectionId: 'shops',
+  destinations: [
+    {
+      tableName: 'avada_customers',
+      upsertConfig: {
+        upsertKeys: ['shopifyDomain'],
+        pickKeys: ['shopifyDomain', 'email', 'name', 'country', 'planDisplayName'],
+        fieldAliases: {
+          shopifyDomain: ['myshopifyDomain'],
+        },
+      },
+    },
+  ],
+})
+```
 
 ### Custom Data Transformation
 
-You can use `transformRow` to modify the data before it's sent to the API. This is useful for formatting dates, calculating fields, or cleaning up data.
+Use `transformRow` to modify the data before writing to BigQuery. This is useful for formatting dates, calculating fields, or cleaning up data.
 
 ```typescript
 changelog.onWrite({
@@ -144,23 +170,26 @@ Pass a `logger` to `createChangelogTrigger` to enable debug logging. Any object 
 import * as functions from 'firebase-functions';
 
 const changelog = createChangelogTrigger({
-  appId: 'your-app-id',
-  apiKey: 'your-api-key',
+  appId: 'orderLimit',
+  appPrefix: 'ol',
+  datasetId: 'churn_prediction',
+  credentials: functions.config().bigquery.credentials,
   logger: functions.logger,
 });
 ```
 
 ### Handling Multiple Collections
 
-If you have many collections to track, you can use `onWriteMany` or `onWriteManyV2`:
+If you have many collections to track, use `onWriteMany` or `onWriteManyV2`:
 
 ```typescript
 const handlers = changelog.onWriteMany([
-  { collectionId: 'settings', destinations: [{ tableName: 'settings' }] },
-  { collectionId: 'profiles', destinations: [{ tableName: 'profiles', pickKeys: ['theme'] }] }
+  { collectionId: 'settings' },
+  { collectionId: 'profiles', destinations: [{ pickKeys: ['theme'] }] }
 ]);
 
-// Then export them or register them as needed by your framework
+// Each handler has { collectionId, handler }
+// Register them as needed by your framework
 ```
 
 ## API Reference
@@ -169,12 +198,12 @@ const handlers = changelog.onWriteMany([
 
 | Option | Type | Description |
 | :--- | :--- | :--- |
-| `appId` | `string` | **Required**. Your application identifier. |
+| `appId` | `string` | **Required**. Your application identifier (e.g. `'orderLimit'`). |
+| `appPrefix` | `string` | **Required**. Short prefix for table names (e.g. `'ol'`). Default table name = `{appPrefix}_{collectionId}_changelog`. |
+| `datasetId` | `string` | **Required**. BigQuery dataset ID. |
+| `credentials` | `object \| string` | **Required**. Service account credentials. Accepts JSON object, JSON string, or base64-encoded string. |
 | `projectId` | `string` | Optional. Firebase project ID (default: `'avada-crm'`). |
-| `apiUrl` | `string` | Optional. Endpoint URL. |
-| `apiKey` | `string` | **Required**. API key for authentication. |
-| `timeout` | `number` | Optional. Request timeout in ms (default: 10000). |
-| `headers` | `object` | Optional. Custom headers for the request. |
+| `changelogSchema` | `SchemaField[]` | Optional. Custom schema for changelog tables. |
 | `logger` | `Logger` | Optional. Logger instance for debugging (must have `info` and `error` methods). |
 
 ### `CollectionConfig`
@@ -182,22 +211,51 @@ const handlers = changelog.onWriteMany([
 | Option | Type | Description |
 | :--- | :--- | :--- |
 | `collectionId` | `string` | **Required**. Firestore collection name. |
-| `destinations` | `DestinationConfig[]` | Optional. Array of destination tables to write to. Defaults to `[{ tableName: collectionId }]`. |
+| `destinations` | `DestinationConfig[]` | Optional. Array of destination tables. Defaults to a single append-only changelog table. |
 
 ### `DestinationConfig`
 
 | Option | Type | Description |
 | :--- | :--- | :--- |
-| `tableName` | `string` | **Required**. BigQuery destination table name. |
+| `tableName` | `string` | Optional. BigQuery destination table name. Defaults to `{appPrefix}_{collectionId}_changelog`. |
 | `pickKeys` | `string[]` | Optional. Fields to extract from the document as extra columns (auto `snake_case`). |
-| `upsertKeys` | `string[]` | Optional. camelCase field names for MERGE mode. When set, API will upsert instead of insert. |
-| `transformRow` | `function` | Optional. Async/sync function to modify the row before sending. |
+| `upsertKeys` | `string[]` | Optional. camelCase field names for MERGE mode. When set, SDK will upsert instead of insert. |
+| `upsertConfig` | `UpsertConfig` | Optional. Advanced upsert config with `pickKeys`, `fieldAliases`, and `upsertKeys`. |
+| `transformRow` | `function` | Optional. Async/sync function to modify the row before writing. |
+
+### `UpsertConfig`
+
+| Option | Type | Description |
+| :--- | :--- | :--- |
+| `upsertKeys` | `string[]` | **Required**. camelCase field names used as MERGE keys. |
+| `pickKeys` | `string[]` | **Required**. Fields to pick from the `data` JSON for the upsert row. |
+| `fieldAliases` | `Record<string, string[]>` | Optional. Alternative field names to match in the document data. |
+
+### Return Values
+
+- `onWrite()` / `onWriteV2()` return handlers that resolve to `DestinationResult[]`, where each result contains `{ table, skipped?, error? }`.
+- `onWriteMany()` / `onWriteManyV2()` return an array of `{ collectionId, handler }`.
+
+## Project Structure
+
+```
+src/
+  index.ts                  — Public exports
+  config.ts                 — Default changelog schema
+  types.ts                  — All TypeScript interfaces
+  utils.ts                  — Helpers (toSnakeCase, getWriteType, generateDefaultRow, pickTriggerData)
+  createChangelogTrigger.ts — Main trigger factory
+  bigquery/
+    index.ts                — Barrel export
+    credentials.ts          — Credential parsing & BigQuery client construction
+    operations.ts           — Table schema management, insertRow, upsertRow
+    upsertLock.ts           — In-process mutex for upsert serialization
+    destinationProcessor.ts — Destination routing & processing
+```
 
 ## Development
 
 ### Building the project
-
-To compile the TypeScript source code into the `lib` directory:
 
 ```bash
 npm run build
@@ -205,19 +263,12 @@ npm run build
 
 ### Publishing to NPM
 
-1. **Login to NPM** (if not already):
-   ```bash
-   npm login
-   ```
-
-2. **Update version**:
-   Update the `version` in `package.json` (e.g., `0.1.1`).
-
-3. **Publish**:
+1. Update the `version` in `package.json`.
+2. Publish:
    ```bash
    npm publish --access public
    ```
-   *Note: The `prepublishOnly` script will automatically run `npm run build` before publishing.*
+   The `prepublishOnly` script will automatically run `npm run build` before publishing.
 
 ## License
 

@@ -55,8 +55,9 @@ export const pickTriggerData = ({
   const afterData = (change.after.data() || {}) as Record<string, unknown>;
   const beforeData = (change.before.data() || {}) as Record<string, unknown>;
 
-  return keys.reduce<Record<string, unknown>>((acc, key) => {
-    acc[toSnakeCase(key)] = afterData[key] ?? beforeData[key] ?? null;
-    return acc;
-  }, {});
+  const result: Record<string, unknown> = {};
+  for (const key of keys) {
+    result[toSnakeCase(key)] = afterData[key] ?? beforeData[key] ?? null;
+  }
+  return result;
 };

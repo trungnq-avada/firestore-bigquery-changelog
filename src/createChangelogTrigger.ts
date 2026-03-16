@@ -1,23 +1,32 @@
-import {createApiClient} from './apiClient';
+import {createBigQueryClient, createDestinationProcessor} from './bigquery';
 import {generateDefaultRow, pickTriggerData} from './utils';
 import type {
   ChangelogTriggerConfig,
   CollectionConfig,
   FirestoreChange,
   FirestoreContext,
-  FirestoreEvent
+  FirestoreEvent,
+  DestinationResult
 } from './types';
 
 export const createChangelogTrigger = (inputConfig: ChangelogTriggerConfig) => {
   const config = {...inputConfig, projectId: inputConfig.projectId ?? 'avada-crm'};
   const logger = config.logger;
-  const {sendRow} = createApiClient(config);
+
+  const bigquery = createBigQueryClient(config.credentials);
+  const processor = createDestinationProcessor({
+    bigquery,
+    datasetId: config.datasetId,
+    appPrefix: config.appPrefix,
+    changelogSchema: config.changelogSchema,
+    logger
+  });
 
   const onWrite = (collectionConfig: CollectionConfig) => {
     const {collectionId} = collectionConfig;
-    const destinations = collectionConfig.destinations ?? [{tableName: collectionId}];
+    const destinations = collectionConfig.destinations ?? [{}];
 
-    return async (change: FirestoreChange, context: FirestoreContext): Promise<boolean> => {
+    return async (change: FirestoreChange, context: FirestoreContext): Promise<DestinationResult[]> => {
       const baseRow = generateDefaultRow({
         change,
         context,
@@ -26,7 +35,7 @@ export const createChangelogTrigger = (inputConfig: ChangelogTriggerConfig) => {
         appId: config.appId
       });
 
-      const destinationsPayload = await Promise.all(
+      const processedDestinations = await Promise.all(
         destinations.map(async (dest) => {
           const pickKeys = dest.pickKeys ?? [];
           let row = {
@@ -38,33 +47,36 @@ export const createChangelogTrigger = (inputConfig: ChangelogTriggerConfig) => {
             row = await dest.transformRow(row);
           }
 
-          return {tableName: dest.tableName, upsertKeys: dest.upsertKeys, row};
+          return {
+            tableName: dest.tableName ?? processor.resolveTableName(collectionId),
+            upsertKeys: dest.upsertKeys,
+            upsertConfig: dest.upsertConfig,
+            row
+          };
         })
       );
 
-      logger?.debug?.(`[changelog] ${collectionId} → ${destinations.map(d => d.tableName).join(', ')}`);
-      await sendRow(collectionId, destinationsPayload);
-      logger?.info?.(`[changelog] ${collectionId}: sent ${destinationsPayload.length} destination(s)`);
-      return true;
+      logger?.debug?.(`[changelog] ${collectionId} → ${processedDestinations.map(d => d.tableName).join(', ')}`);
+      const results = await processor.processDestinations(collectionId, processedDestinations);
+      logger?.info?.(`[changelog] ${collectionId}: wrote ${results.length} destination(s)`);
+      return results;
     };
   };
 
   const onWriteV2 = (collectionConfig: CollectionConfig) => {
     const handler = onWrite(collectionConfig);
 
-    return async (event: FirestoreEvent): Promise<boolean> => {
+    return async (event: FirestoreEvent): Promise<DestinationResult[] | false> => {
       if (!event.data) return false;
       return handler(event.data, {timestamp: event.time, eventId: event.id});
     };
   };
 
   const onWriteMany = (collectionConfigs: CollectionConfig[]) => {
-    const handlers = collectionConfigs.map(cfg => ({
+    return collectionConfigs.map(cfg => ({
       collectionId: cfg.collectionId,
       handler: onWrite(cfg)
     }));
-
-    return handlers;
   };
 
   const onWriteManyV2 = (collectionConfigs: CollectionConfig[]) => {

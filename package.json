@@ -1,7 +1,7 @@
 {
   "name": "firestore-bigquery-changelog",
-  "version": "0.1.9",
-  "description": "SDK to log Firestore document changelog to an API",
+  "version": "0.2.0",
+  "description": "SDK to log Firestore document changelog directly to BigQuery",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
@@ -10,6 +10,9 @@
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@google-cloud/bigquery": "^7.0.0"
   },
   "peerDependencies": {
     "firebase-functions": ">=4.0.0"
