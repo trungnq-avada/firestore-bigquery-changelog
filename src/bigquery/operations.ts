@@ -1,6 +1,14 @@
 import {BigQuery} from '@google-cloud/bigquery';
 import {DEFAULT_CHANGELOG_SCHEMA} from '../config';
-import type {SchemaField} from '../types';
+import type {SchemaField, TimePartitioning} from '../types';
+
+function resolveTimePartitioning(
+  tp?: boolean | TimePartitioning
+): {type: string; field?: string; expirationMs?: string} | undefined {
+  if (!tp) return undefined;
+  if (tp === true) return {type: 'DAY', field: 'timestamp'};
+  return {type: tp.type ?? 'DAY', field: tp.field ?? 'timestamp', ...(tp.expirationMs && {expirationMs: tp.expirationMs})};
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -10,7 +18,8 @@ export async function ensureTableSchema(
   bigquery: BigQuery,
   datasetId: string,
   tableName: string,
-  columns: string[]
+  columns: string[],
+  timePartitioning?: boolean | TimePartitioning
 ): Promise<void> {
   const dataset = bigquery.dataset(datasetId);
   const table = dataset.table(tableName);
@@ -18,7 +27,10 @@ export async function ensureTableSchema(
   const [exists] = await table.exists();
   if (!exists) {
     const schema = columns.map(col => ({name: col, type: 'STRING'}));
-    await dataset.createTable(tableName, {schema: {fields: schema}});
+    const options: Record<string, unknown> = {schema: {fields: schema}};
+    const tp = resolveTimePartitioning(timePartitioning);
+    if (tp) options.timePartitioning = tp;
+    await dataset.createTable(tableName, options);
     return;
   }
 
@@ -43,14 +55,18 @@ export async function insertRow(
   datasetId: string,
   tableName: string,
   row: Record<string, unknown>,
-  schema: SchemaField[] = DEFAULT_CHANGELOG_SCHEMA
+  schema: SchemaField[] = DEFAULT_CHANGELOG_SCHEMA,
+  timePartitioning?: boolean | TimePartitioning
 ): Promise<void> {
   const dataset = bigquery.dataset(datasetId);
   const table = dataset.table(tableName);
 
   const [tableExists] = await table.exists();
   if (!tableExists) {
-    await dataset.createTable(tableName, {schema: {fields: schema}});
+    const options: Record<string, unknown> = {schema: {fields: schema}};
+    const tp = resolveTimePartitioning(timePartitioning);
+    if (tp) options.timePartitioning = tp;
+    await dataset.createTable(tableName, options);
     await delay(3000);
   }
 
@@ -74,7 +90,8 @@ export async function upsertRow(
   tableName: string,
   row: Record<string, unknown>,
   upsertKeys: string[],
-  allColumns?: string[]
+  allColumns?: string[],
+  timePartitioning?: boolean | TimePartitioning
 ): Promise<void> {
   for (const key of upsertKeys) {
     if (row[key] == null) {
@@ -86,7 +103,7 @@ export async function upsertRow(
   const columns = Object.keys(row);
 
   const schemaColumns = allColumns ?? columns;
-  await ensureTableSchema(bigquery, datasetId, tableName, schemaColumns);
+  await ensureTableSchema(bigquery, datasetId, tableName, schemaColumns, timePartitioning);
 
   const bt = (col: string) => `\`${col}\``;
   const onCondition = upsertKeys.map(key => `T.${bt(key)} = S.${bt(key)}`).join(' AND ');

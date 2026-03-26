@@ -12,6 +12,7 @@ SDK to log Firestore document changelog directly to BigQuery. This package helps
 - Upsert (MERGE) mode with composite keys, field picking, and aliases.
 - In-process mutex lock to prevent concurrent upsert race conditions.
 - Auto table creation and schema migration (adds missing columns).
+- Optional BigQuery time partitioning for better query performance and cost.
 - Built-in TypeScript support.
 
 ## Installation
@@ -65,7 +66,7 @@ credentials: process.env.BIGQUERY_CREDENTIALS_BASE64
 | Option | Default | Description |
 | :--- | :--- | :--- |
 | `appPrefix` | Auto from `appId` | First char + each uppercase char, lowercased. E.g. `orderLimit` → `ol`, `cookieBar` → `cb`, `seaAccessibility` → `sa`. Override by passing explicitly. |
-| `datasetId` | `'churn_prediction'` | BigQuery dataset ID. |
+| `datasetId` | `'product_data_analytics'` | BigQuery dataset ID. |
 | `projectId` | `'avada-crm'` | Firebase project ID. |
 
 Table name format: `{appPrefix}_{collectionId}_changelog` (e.g. `ol_products_changelog`).
@@ -193,6 +194,41 @@ changelog.onWrite({
 })
 ```
 
+### Time Partitioning
+
+BigQuery [time partitioning](https://cloud.google.com/bigquery/docs/partitioned-tables) is **enabled by default** (DAY partition on `timestamp` field) for better query performance and lower costs on large tables.
+
+```typescript
+// Default — already partitioned by `timestamp` (DAY), no config needed
+const changelog = createChangelogTrigger({
+  appId: 'orderLimit',
+});
+
+// Custom — partition by MONTH with 90-day expiration
+const changelog = createChangelogTrigger({
+  appId: 'orderLimit',
+  timePartitioning: {
+    type: 'MONTH',
+    field: 'timestamp',
+    expirationMs: '7776000000', // 90 days
+  },
+});
+
+// Disable partitioning
+const changelog = createChangelogTrigger({
+  appId: 'orderLimit',
+  timePartitioning: false,
+});
+```
+
+| Option | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `type` | `'DAY' \| 'HOUR' \| 'MONTH' \| 'YEAR'` | `'DAY'` | Partition granularity. |
+| `field` | `string` | `'timestamp'` | TIMESTAMP field to partition on. |
+| `expirationMs` | `string` | — | Auto-delete partitions older than this (in milliseconds). |
+
+> **Note:** Partitioning is only applied when creating new tables. Existing tables are not affected — you must drop and recreate them to change partitioning.
+
 ### Logger
 
 Pass a `logger` to `createChangelogTrigger` to enable debug logging. Any object with `info` and `error` methods works (e.g. `console`, `functions.logger`).
@@ -229,10 +265,11 @@ const handlers = changelog.onWriteMany([
 | :--- | :--- | :--- |
 | `appId` | `string` | **Required**. Your application identifier (e.g. `'orderLimit'`). |
 | `appPrefix` | `string` | Optional. Short prefix for table names (e.g. `'ol'`). Auto-generated from `appId` if not provided. Table name = `{appPrefix}_{collectionId}_changelog`. |
-| `datasetId` | `string` | Optional. BigQuery dataset ID (default: `'churn_prediction'`). |
+| `datasetId` | `string` | Optional. BigQuery dataset ID (default: `'product_data_analytics'`). |
 | `credentials` | `object \| string` | Optional. Service account credentials. Omit to use default credentials (`new BigQuery()`). Accepts: JSON object, JSON string, or base64-encoded string. Auto-detected. |
 | `projectId` | `string` | Optional. Firebase project ID (default: `'avada-crm'`). |
 | `changelogSchema` | `SchemaField[]` | Optional. Custom schema for changelog tables. |
+| `timePartitioning` | `boolean \| TimePartitioning` | Optional. Default: `true` (DAY partition on `timestamp`). Pass object to customize, or `false` to disable. |
 | `logger` | `Logger` | Optional. Logger instance for debugging (must have `info` and `error` methods). |
 
 ### `CollectionConfig`

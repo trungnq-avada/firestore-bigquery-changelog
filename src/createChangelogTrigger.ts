@@ -11,7 +11,7 @@ import type {
 
 export const createChangelogTrigger = (inputConfig: ChangelogTriggerConfig) => {
   const appPrefix = inputConfig.appPrefix ?? generateAppPrefix(inputConfig.appId);
-  const datasetId = inputConfig.datasetId ?? 'churn_prediction';
+  const datasetId = inputConfig.datasetId ?? 'product_data_analytics';
   const config = {...inputConfig, projectId: inputConfig.projectId ?? 'avada-crm', appPrefix, datasetId};
   const logger = config.logger;
 
@@ -21,6 +21,7 @@ export const createChangelogTrigger = (inputConfig: ChangelogTriggerConfig) => {
     datasetId: config.datasetId,
     appPrefix: config.appPrefix,
     changelogSchema: config.changelogSchema,
+    timePartitioning: config.timePartitioning ?? true,
     logger
   });
 

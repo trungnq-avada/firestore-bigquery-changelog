@@ -14,7 +14,7 @@ export interface ChangelogTriggerConfig {
   appPrefix?: string;
   /** Firebase project ID. Default: 'avada-crm' */
   projectId?: string;
-  /** BigQuery dataset ID. Default: 'churn_prediction' */
+  /** BigQuery dataset ID. Default: 'product_data_analytics' */
   datasetId?: string;
   /** Service account credentials (auto-detected format). Accepts:
    * - JSON object: `require('./service-account.json')`
@@ -25,6 +25,9 @@ export interface ChangelogTriggerConfig {
   credentials?: Record<string, unknown> | string;
   /** Custom schema for changelog tables */
   changelogSchema?: SchemaField[];
+  /** Time partitioning config. Default: `true` (partition by `timestamp`, DAY).
+   * Pass an object to customize, or `false` to disable. */
+  timePartitioning?: boolean | TimePartitioning;
   /** Optional logger for debugging. */
   logger?: Logger;
 }
@@ -32,6 +35,15 @@ export interface ChangelogTriggerConfig {
 export interface SchemaField {
   name: string;
   type: string;
+}
+
+export interface TimePartitioning {
+  /** Partition type. Default: 'DAY' */
+  type?: 'DAY' | 'HOUR' | 'MONTH' | 'YEAR';
+  /** Field to partition on. Default: 'timestamp' */
+  field?: string;
+  /** Partition expiration in milliseconds (e.g. 90 days = 90 * 24 * 3600 * 1000) */
+  expirationMs?: string;
 }
 
 export interface UpsertConfig {

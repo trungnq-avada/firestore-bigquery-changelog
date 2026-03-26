@@ -3,7 +3,7 @@ import {insertRow, upsertRow} from './operations';
 import {withUpsertLock} from './upsertLock';
 import {DEFAULT_CHANGELOG_SCHEMA} from '../config';
 import {toSnakeCase} from '../utils';
-import type {SchemaField, UpsertConfig, Logger, DestinationResult} from '../types';
+import type {SchemaField, UpsertConfig, Logger, DestinationResult, TimePartitioning} from '../types';
 
 export interface ProcessedDestination {
   tableName: string;
@@ -93,9 +93,10 @@ export function createDestinationProcessor(config: {
   datasetId: string;
   appPrefix: string;
   changelogSchema?: SchemaField[];
+  timePartitioning?: boolean | TimePartitioning;
   logger?: Logger;
 }) {
-  const {bigquery, datasetId, appPrefix, logger} = config;
+  const {bigquery, datasetId, appPrefix, logger, timePartitioning} = config;
   const changelogSchema = config.changelogSchema ?? DEFAULT_CHANGELOG_SCHEMA;
 
   function resolveTableName(collectionId: string, tableName?: string): string {
@@ -127,7 +128,7 @@ export function createDestinationProcessor(config: {
 
     const lockKey = snakeKeys.map(k => pickedFields[k]).join('::');
     await withUpsertLock(lockKey, () =>
-      upsertRow(bigquery, datasetId, tableName, pickedFields, snakeKeys, allColumns)
+      upsertRow(bigquery, datasetId, tableName, pickedFields, snakeKeys, allColumns, timePartitioning)
     );
 
     return {table: tableName};
@@ -148,7 +149,7 @@ export function createDestinationProcessor(config: {
       return processUpsertDestination(tableName, row, upsertKeys, upsertConfig);
     }
 
-    await insertRow(bigquery, datasetId, tableName, row, changelogSchema);
+    await insertRow(bigquery, datasetId, tableName, row, changelogSchema, timePartitioning);
     return {table: tableName};
   }
 
