@@ -1,3 +1,44 @@
+export const AVADA_APPS = {
+  JOY_SUBSCRIPTION: 'joySubscription',
+  SEA_ACCESSIBILITY: 'seaAccessibility',
+  SEA_SURVEY: 'seaSurvey',
+  POS_STAFF_MANAGEMENT: 'posStaffManagement',
+  AIR_REVIEWS: 'airReviews',
+  ORDER_LIMIT: 'orderLimit',
+  COOKIE_BAR: 'cookieBar',
+  LUNA_BOOKING: 'lunaBooking',
+  LUNA_WHATSAPP: 'lunaWhatsapp',
+  MARS_COD_FORM: 'marsCodForm',
+  PDF_INVOICE: 'pdfInvoice',
+  SHOPVID: 'shopvid',
+  UPMAGIC_AI: 'upMagicAI',
+  AOV_BUNDLE: 'aovBundle',
+  AOV_CART_DRAWER: 'aovCartDrawer',
+  AOV_CHECKOUT_UPSELL: 'aovCheckoutUpsell',
+  AOV_COUNTDOWN_TIMER: 'aovCountdownTimer',
+  AOV_FREE_GIFT: 'aovFreeGift',
+  AOV_POST_PURCHASE: 'aovPostPurchase',
+  BOOST_SALES: 'boostSales',
+  JOY_LOYALTY: 'joyLoyalty',
+  CHATTY: 'chatty',
+  EMAIL_MARKETING: 'emailMarketing',
+  WISHLIST: 'wishlist',
+  IMAGE_OPTIMIZER: 'imageOptimizer',
+  BLOCKO_SECTION: 'blockoSection',
+  SEO_ON_AEO: 'seoOnAEO',
+  SEO_ON_AI_PRODUCT_COPY: 'seoOnAIProductCopy',
+  SEO_ON_BLOG: 'seoOnBlog',
+  SEO_SUITE: 'seoSuite',
+} as const;
+
+/** @deprecated appId aliases — mapped to their canonical AppId at runtime */
+export const APP_ID_ALIASES = {
+  appointmentBooking: 'lunaBooking',
+} as const;
+
+export type DeprecatedAppId = keyof typeof APP_ID_ALIASES;
+export type AppId = (typeof AVADA_APPS)[keyof typeof AVADA_APPS] | DeprecatedAppId;
+
 export interface Logger {
   info: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
@@ -7,10 +48,9 @@ export interface Logger {
 
 export interface ChangelogTriggerConfig {
   /** Application ID */
-  appId: string;
-  /** Short prefix for auto-generating table names. E.g. 'ol' for orderLimit, 'cb' for cookieBar.
-   * Auto-generated from appId if not provided (first char + each uppercase char, lowercased).
-   * Default table name = `{appPrefix}_{collectionId}_changelog` */
+  appId: AppId;
+  /** Short prefix for table names. Defaults to appId value.
+   * Table name = `{appPrefix}_{collectionId}_changelog` */
   appPrefix?: string;
   /** Firebase project ID. Default: 'avada-crm' */
   projectId?: string;
@@ -81,7 +121,7 @@ export interface ChangelogRow {
   data: string | null;
   old_data: string | null;
   document_id: string;
-  app_id: string;
+  app_id: AppId;
   [key: string]: unknown;
 }
 

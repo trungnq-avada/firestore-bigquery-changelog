@@ -1,20 +1,7 @@
-import type {FirestoreChange, FirestoreContext, WriteType, ChangelogRow} from './types';
+import type {AppId, FirestoreChange, FirestoreContext, WriteType, ChangelogRow} from './types';
 
 export const toSnakeCase = (str: string): string =>
   str.replace(/([A-Z])/g, '_$1').replace(/^_/, '').toLowerCase();
-
-/** Generate a short prefix from a camelCase appId.
- * Takes the first char + each uppercase char, lowercased.
- * e.g. orderLimit → 'ol', cookieBar → 'cb', seaAccessibility → 'sa' */
-export const generateAppPrefix = (appId: string): string => {
-  const chars = [appId[0]];
-  for (let i = 1; i < appId.length; i++) {
-    if (appId[i] >= 'A' && appId[i] <= 'Z') {
-      chars.push(appId[i]);
-    }
-  }
-  return chars.join('').toLowerCase();
-};
 
 export const getWriteType = (change: FirestoreChange): WriteType | undefined => {
   const before = change.before.exists;
@@ -37,7 +24,7 @@ export const generateDefaultRow = ({
   context: FirestoreContext;
   collectionId: string;
   projectId: string;
-  appId: string;
+  appId: AppId;
 }): ChangelogRow => {
   const writeType = getWriteType(change);
   const currentData = change.after.data() || {};

@@ -1,6 +1,9 @@
 import {createBigQueryClient, createDestinationProcessor} from './bigquery';
-import {generateAppPrefix, generateDefaultRow, pickTriggerData} from './utils';
+import {generateDefaultRow, pickTriggerData} from './utils';
+// eslint-disable-next-line deprecation/deprecation
+import {APP_ID_ALIASES} from './types';
 import type {
+  AppId,
   ChangelogTriggerConfig,
   CollectionConfig,
   FirestoreChange,
@@ -9,10 +12,14 @@ import type {
   DestinationResult
 } from './types';
 
+const resolveAppId = (appId: AppId): Exclude<AppId, keyof typeof APP_ID_ALIASES> =>
+  (APP_ID_ALIASES as Record<string, string>)[appId] as Exclude<AppId, keyof typeof APP_ID_ALIASES> ?? appId;
+
 export const createChangelogTrigger = (inputConfig: ChangelogTriggerConfig) => {
-  const appPrefix = inputConfig.appPrefix ?? generateAppPrefix(inputConfig.appId);
+  const appId = resolveAppId(inputConfig.appId);
+  const appPrefix = inputConfig.appPrefix ?? appId;
   const datasetId = inputConfig.datasetId ?? 'product_data_analytics';
-  const config = {...inputConfig, projectId: inputConfig.projectId ?? 'avada-crm', appPrefix, datasetId};
+  const config = {...inputConfig, appId, projectId: inputConfig.projectId ?? 'avada-crm', appPrefix, datasetId};
   const logger = config.logger;
 
   const bigquery = createBigQueryClient(config.credentials);

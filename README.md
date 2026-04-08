@@ -27,49 +27,48 @@ npm install @avada/firestore-bigquery-changelog
 
 Only `appId` is required. Everything else has sensible defaults.
 
+#### Firebase Functions V1
+
 ```typescript
-import { createChangelogTrigger } from '@avada/firestore-bigquery-changelog';
+import * as functions from 'firebase-functions';
+import { createChangelogTrigger, AVADA_APPS } from '@avada/firestore-bigquery-changelog';
 
-// With explicit credentials (for cross-project BigQuery access)
 const changelog = createChangelogTrigger({
-  appId: 'orderLimit',
-  credentials: require('./service-account.json'),
+  appId: AVADA_APPS.ORDER_LIMIT,
+  credentials: functions.config().changelog_credentials,
 });
+```
 
-// Without credentials (uses default service account, e.g. inside Firebase Functions)
+#### Firebase Functions V2
+
+```typescript
+import { createChangelogTrigger, AVADA_APPS } from '@avada/firestore-bigquery-changelog';
+
 const changelog = createChangelogTrigger({
-  appId: 'orderLimit',
+  appId: AVADA_APPS.ORDER_LIMIT,
+  credentials: process.env.CHANGELOG_CREDENTIALS,
 });
 ```
 
 #### Credentials
 
-The `credentials` field is optional. When omitted, the SDK uses `new BigQuery()` which picks up the default service account automatically (e.g. the Firebase project's service account). This is useful when writing to BigQuery within the same GCP project.
+The `credentials` field accepts three formats (auto-detected):
 
-When provided, it accepts three formats (auto-detected):
+- **JSON string** — e.g. from `functions.config()` (V1) or `process.env` (V2)
+- **Base64-encoded string** — base64 of the JSON above
+- **JSON object** — e.g. `require('./service-account.json')`
 
-```typescript
-// 1. JSON object — import or require a service account JSON file
-credentials: require('./service-account.json')
-
-// 2. JSON string — e.g. from Firebase functions.config()
-credentials: functions.config().bigquery.credentials
-// where credentials = '{"project_id": "...", "private_key": "...", ...}'
-
-// 3. Base64-encoded string — e.g. from environment variable or functions.config()
-credentials: process.env.BIGQUERY_CREDENTIALS_BASE64
-// where the value is a base64-encoded JSON string
-```
+When omitted, the SDK uses `new BigQuery()` which picks up the default service account automatically (e.g. the Firebase project's service account).
 
 #### Defaults
 
 | Option | Default | Description |
 | :--- | :--- | :--- |
-| `appPrefix` | Auto from `appId` | First char + each uppercase char, lowercased. E.g. `orderLimit` → `ol`, `cookieBar` → `cb`, `seaAccessibility` → `sa`. Override by passing explicitly. |
+| `appPrefix` | Same as `appId` | E.g. `orderLimit` → table `orderLimit_products_changelog`. Override by passing explicitly. |
 | `datasetId` | `'product_data_analytics'` | BigQuery dataset ID. |
 | `projectId` | `'avada-crm'` | Firebase project ID. |
 
-Table name format: `{appPrefix}_{collectionId}_changelog` (e.g. `ol_products_changelog`).
+Table name format: `{appPrefix}_{collectionId}_changelog` (e.g. `orderLimit_products_changelog`).
 
 ### 2. Set up Firestore Triggers
 
@@ -201,12 +200,12 @@ BigQuery [time partitioning](https://cloud.google.com/bigquery/docs/partitioned-
 ```typescript
 // Default — already partitioned by `timestamp` (DAY), no config needed
 const changelog = createChangelogTrigger({
-  appId: 'orderLimit',
+  appId: AVADA_APPS.ORDER_LIMIT,
 });
 
 // Custom — partition by MONTH with 90-day expiration
 const changelog = createChangelogTrigger({
-  appId: 'orderLimit',
+  appId: AVADA_APPS.ORDER_LIMIT,
   timePartitioning: {
     type: 'MONTH',
     field: 'timestamp',
@@ -216,7 +215,7 @@ const changelog = createChangelogTrigger({
 
 // Disable partitioning
 const changelog = createChangelogTrigger({
-  appId: 'orderLimit',
+  appId: AVADA_APPS.ORDER_LIMIT,
   timePartitioning: false,
 });
 ```
@@ -234,12 +233,20 @@ const changelog = createChangelogTrigger({
 Pass a `logger` to `createChangelogTrigger` to enable debug logging. Any object with `info` and `error` methods works (e.g. `console`, `functions.logger`).
 
 ```typescript
+// V1
 import * as functions from 'firebase-functions';
 
 const changelog = createChangelogTrigger({
-  appId: 'orderLimit',
-  credentials: functions.config().bigquery.credentials, // JSON string or base64
+  appId: AVADA_APPS.ORDER_LIMIT,
+  credentials: functions.config().changelog_credentials,
   logger: functions.logger,
+});
+
+// V2
+const changelog = createChangelogTrigger({
+  appId: AVADA_APPS.ORDER_LIMIT,
+  credentials: process.env.CHANGELOG_CREDENTIALS,
+  logger: console,
 });
 ```
 
@@ -263,8 +270,8 @@ const handlers = changelog.onWriteMany([
 
 | Option | Type | Description |
 | :--- | :--- | :--- |
-| `appId` | `string` | **Required**. Your application identifier (e.g. `'orderLimit'`). |
-| `appPrefix` | `string` | Optional. Short prefix for table names (e.g. `'ol'`). Auto-generated from `appId` if not provided. Table name = `{appPrefix}_{collectionId}_changelog`. |
+| `appId` | `AppId` | **Required**. Use `AVADA_APPS.*` constant (e.g. `AVADA_APPS.ORDER_LIMIT`). |
+| `appPrefix` | `string` | Optional. Defaults to `appId` value. Table name = `{appPrefix}_{collectionId}_changelog`. |
 | `datasetId` | `string` | Optional. BigQuery dataset ID (default: `'product_data_analytics'`). |
 | `credentials` | `object \| string` | Optional. Service account credentials. Omit to use default credentials (`new BigQuery()`). Accepts: JSON object, JSON string, or base64-encoded string. Auto-detected. |
 | `projectId` | `string` | Optional. Firebase project ID (default: `'avada-crm'`). |
