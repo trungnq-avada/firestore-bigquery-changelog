@@ -154,5 +154,6 @@ export interface FirestoreEvent<T = FirestoreChange | undefined> {
 export interface DestinationResult {
   table: string;
   skipped?: boolean;
+  reason?: string;
   error?: string;
 }

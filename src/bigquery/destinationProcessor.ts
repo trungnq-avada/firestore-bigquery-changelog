@@ -43,6 +43,11 @@ interface UpsertFields {
 }
 
 function buildFromUpsertConfig(row: Record<string, unknown>, upsertConfig: UpsertConfig): UpsertFields {
+  const missingKeys = upsertConfig.upsertKeys.filter(k => !upsertConfig.pickKeys.includes(k));
+  if (missingKeys.length) {
+    throw new Error(`upsertConfig.upsertKeys must be a subset of pickKeys. Missing: ${missingKeys.join(', ')}`);
+  }
+
   const pickedFields = pickFieldsFromData(
     row.data as string | null,
     upsertConfig.pickKeys,
@@ -50,8 +55,15 @@ function buildFromUpsertConfig(row: Record<string, unknown>, upsertConfig: Upser
   );
   for (const key of upsertConfig.pickKeys) {
     const snakeKey = toSnakeCase(key);
-    if (!(snakeKey in pickedFields) && key in row) {
-      pickedFields[snakeKey] = row[key];
+    if (!(snakeKey in pickedFields)) {
+      if (key in row) {
+        pickedFields[snakeKey] = row[key];
+      } else if (upsertConfig.fieldAliases?.[key]) {
+        const alias = upsertConfig.fieldAliases[key].find(a => a in row);
+        if (alias) {
+          pickedFields[snakeKey] = row[alias];
+        }
+      }
     }
   }
   return {
@@ -111,7 +123,7 @@ export function createDestinationProcessor(config: {
     upsertConfig?: UpsertConfig
   ): Promise<DestinationResult> {
     if (row.operation === 'DELETE' || !row.data) {
-      return {table: tableName, skipped: true};
+      return {table: tableName, skipped: true, reason: 'DELETE operation'};
     }
 
     const {pickedFields, snakeKeys, allColumns} = buildUpsertFields(
@@ -123,10 +135,10 @@ export function createDestinationProcessor(config: {
 
     const missingKey = snakeKeys.find(key => pickedFields[key] == null);
     if (missingKey) {
-      return {table: tableName, skipped: true};
+      return {table: tableName, skipped: true, reason: `Missing upsert key: ${missingKey}`};
     }
 
-    const lockKey = snakeKeys.map(k => pickedFields[k]).join('::');
+    const lockKey = JSON.stringify(snakeKeys.map(k => pickedFields[k]));
     await withUpsertLock(lockKey, () =>
       upsertRow(bigquery, datasetId, tableName, pickedFields, snakeKeys, allColumns, timePartitioning)
     );

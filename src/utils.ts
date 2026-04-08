@@ -1,7 +1,10 @@
 import type {AppId, FirestoreChange, FirestoreContext, WriteType, ChangelogRow} from './types';
 
 export const toSnakeCase = (str: string): string =>
-  str.replace(/([A-Z])/g, '_$1').replace(/^_/, '').toLowerCase();
+  str
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .replace(/([a-z\d])([A-Z])/g, '$1_$2')
+    .toLowerCase();
 
 export const getWriteType = (change: FirestoreChange): WriteType | undefined => {
   const before = change.before.exists;

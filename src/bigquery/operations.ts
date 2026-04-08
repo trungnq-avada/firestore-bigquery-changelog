@@ -99,13 +99,15 @@ export async function upsertRow(
     }
   }
 
-  row.updated_at = new Date().toISOString();
+  if (row.updated_at == null) {
+    row.updated_at = new Date().toISOString();
+  }
   const columns = Object.keys(row);
 
   const schemaColumns = allColumns ?? columns;
   await ensureTableSchema(bigquery, datasetId, tableName, schemaColumns, timePartitioning);
 
-  const bt = (col: string) => `\`${col}\``;
+  const bt = (col: string) => `\`${col.replace(/`/g, '')}\``;
   const onCondition = upsertKeys.map(key => `T.${bt(key)} = S.${bt(key)}`).join(' AND ');
   const updateSet = columns
     .filter(col => !upsertKeys.includes(col))
