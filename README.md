@@ -77,21 +77,9 @@ Table name format: `{appPrefix}_{collectionId}_changelog` (e.g. `orderLimit_prod
 ```typescript
 import * as functions from 'firebase-functions';
 
-// Simple: table name defaults to 'ol_products_changelog'
 export const onProductWrite = functions.firestore
   .document('products/{productId}')
   .onWrite(changelog.onWrite({ collectionId: 'products' }));
-
-// With custom destinations
-export const onOrderWrite = functions.firestore
-  .document('orders/{orderId}')
-  .onWrite(changelog.onWrite({
-    collectionId: 'orders',
-    destinations: [
-      { tableName: 'orders_raw' },
-      { tableName: 'orders_analytics', pickKeys: ['status', 'total'] }
-    ]
-  }));
 ```
 
 #### Firebase Functions V2
@@ -99,8 +87,8 @@ export const onOrderWrite = functions.firestore
 ```typescript
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
-export const onOrderWriteV2 = onDocumentWritten('orders/{orderId}',
-  changelog.onWriteV2({ collectionId: 'orders' })
+export const onProductWriteV2 = onDocumentWritten('products/{productId}',
+  changelog.onWriteV2({ collectionId: 'products' })
 );
 ```
 
@@ -250,20 +238,6 @@ const changelog = createChangelogTrigger({
 });
 ```
 
-### Handling Multiple Collections
-
-If you have many collections to track, use `onWriteMany` or `onWriteManyV2`:
-
-```typescript
-const handlers = changelog.onWriteMany([
-  { collectionId: 'settings' },
-  { collectionId: 'profiles', destinations: [{ pickKeys: ['theme'] }] }
-]);
-
-// Each handler has { collectionId, handler }
-// Register them as needed by your framework
-```
-
 ## API Reference
 
 ### `createChangelogTrigger(config)`
@@ -307,7 +281,6 @@ const handlers = changelog.onWriteMany([
 ### Return Values
 
 - `onWrite()` / `onWriteV2()` return handlers that resolve to `DestinationResult[]`, where each result contains `{ table, skipped?, error? }`.
-- `onWriteMany()` / `onWriteManyV2()` return an array of `{ collectionId, handler }`.
 
 ## Project Structure
 

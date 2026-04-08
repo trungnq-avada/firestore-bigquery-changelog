@@ -82,19 +82,5 @@ export const createChangelogTrigger = (inputConfig: ChangelogTriggerConfig) => {
     };
   };
 
-  const onWriteMany = (collectionConfigs: CollectionConfig[]) => {
-    return collectionConfigs.map(cfg => ({
-      collectionId: cfg.collectionId,
-      handler: onWrite(cfg)
-    }));
-  };
-
-  const onWriteManyV2 = (collectionConfigs: CollectionConfig[]) => {
-    return collectionConfigs.map(cfg => ({
-      collectionId: cfg.collectionId,
-      handler: onWriteV2(cfg)
-    }));
-  };
-
-  return {onWrite, onWriteV2, onWriteMany, onWriteManyV2};
+  return {onWrite, onWriteV2};
 };
