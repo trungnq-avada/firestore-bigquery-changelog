@@ -4,6 +4,7 @@ SDK to log Firestore document changelog directly to BigQuery. This package helps
 
 ## Features
 
+- Predefined app IDs (`AVADA_APPS`) with TypeScript autocomplete.
 - Writes directly to BigQuery (no API proxy needed).
 - Support for both Firebase Functions V1 and V2.
 - Automatic `snake_case` conversion for picked fields.

@@ -73,10 +73,21 @@ export const createChangelogTrigger = (inputConfig: ChangelogTriggerConfig) => {
     };
   };
 
+  /**
+   * V2 handler — accepts both calling conventions:
+   * 1. Raw V2 event:        onWriteV2()(event)           — from onDocumentWritten()
+   * 2. Pre-wrapped V1 args: onWriteV2()(change, context) — from apps using a V2→V1 wrapper
+   */
   const onWriteV2 = (collectionConfig: CollectionConfig) => {
     const handler = onWrite(collectionConfig);
 
-    return async (event: FirestoreEvent): Promise<DestinationResult[] | false> => {
+    return async (eventOrChange: FirestoreEvent | FirestoreChange, context?: FirestoreContext): Promise<DestinationResult[] | false> => {
+      // Already unwrapped by app-level wrapper → forward to V1 handler directly
+      if (context && 'before' in eventOrChange && 'after' in eventOrChange) {
+        return handler(eventOrChange as FirestoreChange, context);
+      }
+      // Raw V2 event → unwrap and forward
+      const event = eventOrChange as FirestoreEvent;
       if (!event.data) return false;
       return handler(event.data, {timestamp: event.time, eventId: event.id});
     };
